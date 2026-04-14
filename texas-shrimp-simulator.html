@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>德州養蝦模擬器</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a1a0f; --panel: rgba(10,30,16,0.88);
+    --border: rgba(74,200,120,0.18); --border2: rgba(74,200,120,0.38);
+    --text: #e8f5ec; --muted: #7db88c; --accent: #3ddc6e; --accent2: #a3ffb8;
+    --warn: #ffcc44; --danger: #ff5555; --gold: #f0be62;
+    --mono: 'IBM Plex Mono', monospace; --sans: 'Noto Sans TC', sans-serif; --display: 'Bebas Neue', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { background: radial-gradient(ellipse at 10% 5%, rgba(61,220,110,0.12) 0%, transparent 40%), radial-gradient(ellipse at 90% 90%, rgba(0,80,40,0.2) 0%, transparent 50%), linear-gradient(180deg,#061208 0%,#0a1a0f 100%); min-height:100vh; }
+  header { padding:18px 26px 12px; border-bottom:1px solid var(--border); display:flex; align-items:flex-end; gap:16px; background:rgba(6,18,10,0.75); backdrop-filter:blur(12px); position:sticky; top:0; z-index:100; }
+  .logo { font-family:var(--display); font-size:38px; letter-spacing:0.04em; color:var(--accent); line-height:1; text-shadow:0 0 40px rgba(61,220,110,0.4); }
+  .sub { font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.12em; margin-bottom:4px; }
+  .tag { font-family:var(--mono); font-size:10px; padding:4px 10px; border-radius:999px; border:1px solid var(--border2); color:var(--accent2); letter-spacing:0.06em; background:rgba(61,220,110,0.06); }
+  .app { display:grid; grid-template-columns:300px 1fr; min-height:calc(100vh - 71px); }
+  .sidebar { padding:14px 16px; border-right:1px solid var(--border); display:flex; flex-direction:column; gap:12px; overflow-y:auto; max-height:calc(100vh - 71px); min-width:0; }
+  .main { display:flex; flex-direction:column; overflow:hidden; max-height:calc(100vh - 71px); min-width:0; }
+  /* bottom cost strip — full width below the grid */
+  .cost-strip { display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:14px 16px; border-top:1px solid var(--border); background:linear-gradient(180deg,rgba(8,20,12,0.95),rgba(6,16,10,0.98)); }
+  .panel { background:linear-gradient(160deg,rgba(14,34,20,0.9),rgba(8,20,12,0.95)); border:1px solid var(--border); border-radius:14px; overflow:hidden; min-width:0; }
+  .panel-head { padding:10px 14px 8px; border-bottom:1px solid var(--border); }
+  .panel-head h3 { font-family:var(--display); font-size:18px; letter-spacing:0.08em; color:var(--accent2); }
+  .hint { font-size:11px; color:var(--muted); margin-top:2px; font-family:var(--mono); word-break:break-word; }
+  .panel-body { padding:11px 14px; }
+  /* slider */
+  .sl-row { display:flex; justify-content:space-between; align-items:baseline; }
+  .sl-row span { font-size:13px; color:var(--muted); font-family:var(--mono); }
+  .sl-row strong { font-family:var(--display); font-size:40px; color:var(--accent); }
+  input[type=range] { -webkit-appearance:none; width:100%; height:7px; background:linear-gradient(90deg,var(--accent) var(--pct,62.5%),rgba(61,220,110,0.15) var(--pct,62.5%)); border-radius:999px; outline:none; cursor:pointer; margin:10px 0; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:22px; height:22px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 4px rgba(61,220,110,0.25); cursor:pointer; transition:transform .15s; }
+  input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.2); }
+  .sl-mm { display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; color:rgba(125,184,140,0.5); }
+  /* season grid */
+  .sg { display:grid; grid-template-columns:repeat(12,1fr); gap:3px; }
+  .mb { display:flex; flex-direction:column; align-items:center; gap:4px; padding:9px 2px; border-radius:8px; cursor:pointer; border:1.5px solid transparent; background:rgba(255,255,255,0.03); transition:all .18s; user-select:none; }
+  .mb .mn { font-family:var(--mono); font-size:10px; color:var(--muted); }
+  .mb .md { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.1); transition:all .18s; }
+  .mb:hover { transform:translateY(-2px); }
+  .mb.t-gold .mn { color:var(--accent); } .mb.t-warn .mn { color:var(--warn); } .mb.t-spring .mn { color:#ffaa44; } .mb.t-danger .mn { color:var(--danger); }
+  .mb.on { border-color:var(--accent); background:rgba(61,220,110,0.12); } .mb.on .md { background:var(--accent); box-shadow:0 0 8px var(--accent); }
+  .mb.on.t-warn { border-color:var(--warn); background:rgba(255,204,68,0.12); } .mb.on.t-warn .md { background:var(--warn); }
+  .mb.on.t-spring { border-color:#ffaa44; background:rgba(255,170,68,0.12); } .mb.on.t-spring .md { background:#ffaa44; }
+  .mb.on.t-danger { border-color:var(--danger); background:rgba(255,85,85,0.12); } .mb.on.t-danger .md { background:var(--danger); }
+  .s-leg { display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; }
+  .s-dot { width:8px; height:8px; border-radius:50%; }
+  /* cycles */
+  .cy-list { display:flex; flex-direction:column; gap:5px; }
+  .cy-row { display:flex; align-items:center; gap:8px; padding:8px 11px; border-radius:9px; background:rgba(255,255,255,0.03); border:1px solid var(--border); font-family:var(--mono); font-size:12px; }
+  .r-safe { background:rgba(61,220,110,0.15); color:var(--accent); border:1px solid rgba(61,220,110,0.3); padding:2px 7px; border-radius:999px; font-size:10px; }
+  .r-warn { background:rgba(255,204,68,0.15); color:var(--warn); border:1px solid rgba(255,204,68,0.3); padding:2px 7px; border-radius:999px; font-size:10px; }
+  .r-danger { background:rgba(255,85,85,0.15); color:var(--danger); border:1px solid rgba(255,85,85,0.3); padding:2px 7px; border-radius:999px; font-size:10px; }
+  /* kpi */
+  .kc { padding:12px 14px; border-radius:11px; background:rgba(255,255,255,0.03); border:1px solid var(--border); }
+  .kl { font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.05em; text-transform:uppercase; }
+  .kv { font-family:var(--display); font-size:26px; letter-spacing:0.03em; margin-top:3px; line-height:1; }
+  .ks { font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:3px; }
+  /* cost rows */
+  .cr { display:flex; justify-content:space-between; align-items:baseline; gap:8px; padding:6px 0; border-bottom:1px solid rgba(74,200,120,0.08); font-family:var(--mono); font-size:11px; }
+  .cr:last-child { border-bottom:none; }
+  .cr > span { flex:1; min-width:0; line-height:1.5; }
+  .cr > strong { flex-shrink:0; white-space:nowrap; }
+  .cc { color:var(--muted); font-size:10px; margin-top:8px; margin-bottom:3px; text-transform:uppercase; letter-spacing:0.06em; font-family:var(--mono); }
+  /* toggle */
+  .tg { position:relative; width:42px; height:22px; cursor:pointer; flex-shrink:0; }
+  .tg input { opacity:0; width:0; height:0; }
+  .tg-tr { position:absolute; inset:0; border-radius:11px; background:rgba(255,255,255,0.1); border:1px solid var(--border); transition:all .2s; }
+  .tg input:checked + .tg-tr { background:rgba(255,85,85,0.2); border-color:var(--danger); }
+  .tg-th { position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:var(--muted); transition:all .2s; }
+  .tg input:checked ~ .tg-th { left:23px; background:var(--danger); box-shadow:0 0 8px rgba(255,85,85,0.5); }
+  /* tabs */
+  .tabs { display:flex; border-bottom:1px solid var(--border); background:rgba(6,18,10,0.6); flex-shrink:0; }
+  .tab { padding:10px 15px; font-family:var(--mono); font-size:11px; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; transition:all .15s; }
+  .tab.on { color:var(--accent); border-bottom-color:var(--accent); }
+  .tab-c { display:none; padding:13px; overflow-y:auto; }
+  .tab-c.on { display:block; }
+  /* map */
+  #map { width:100%; height:100%; }
+  .map-w { flex:1; position:relative; min-height:400px; }
+  .map-ov { position:absolute; top:12px; right:12px; z-index:10; background:rgba(6,18,10,0.9); border:1px solid var(--border); border-radius:11px; padding:10px 13px; font-family:var(--mono); font-size:11px; backdrop-filter:blur(10px); min-width:175px; }
+  .ov-t { color:var(--accent2); font-size:12px; margin-bottom:6px; }
+  .ov-r { display:flex; justify-content:space-between; gap:12px; color:var(--muted); padding:2px 0; }
+  /* pond table */
+  .pt { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11px; }
+  .pt th { padding:7px 9px; text-align:left; color:var(--muted); font-size:10px; text-transform:uppercase; border-bottom:1px solid var(--border); white-space:nowrap; }
+  .pt td { padding:6px 9px; border-bottom:1px solid rgba(74,200,120,0.07); white-space:nowrap; }
+  .pt tr:hover td { background:rgba(61,220,110,0.04); }
+  .bc { display:flex; align-items:center; gap:5px; }
+  .br { height:5px; border-radius:3px; min-width:2px; }
+  .dv { height:1px; background:linear-gradient(90deg,transparent,var(--border),transparent); margin:5px 0; }
+  .es { text-align:center; padding:24px; color:var(--muted); font-family:var(--mono); font-size:12px; }
+  ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-thumb { background:rgba(74,200,120,0.2); border-radius:2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div><div class="sub">TEXAS GULF COAST · 2014 DATA · 德州灣岸</div><div class="logo">德州養蝦模擬器</div></div>
+  <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <span class="tag">13 PONDS</span><span class="tag">PORT MANSFIELD, TX</span><span class="tag">LITOPENAEUS VANNAMEI</span>
+  </div>
+</header>
+
+<div class="app">
+<!-- SIDEBAR -->
+<aside class="sidebar">
+
+  <!-- Yield Slider -->
+  <div class="panel">
+    <div class="panel-head"><h3>每池平均產量</h3><div class="hint">每桶 1,000 磅 · 拖曳調整</div></div>
+    <div class="panel-body">
+      <div class="sl-row"><span>每池產量</span><strong id="bv">30</strong></div>
+      <input type="range" id="bsl" min="5" max="45" value="30"/>
+      <div class="sl-mm"><span>5 桶</span><span>45 桶</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+        <div class="kc"><div class="kl">每池磅數</div><div class="kv" id="lpp" style="font-size:16px;color:var(--accent)">30,000</div><div class="ks">lbs/池/季</div></div>
+        <div class="kc"><div class="kl">損益平衡</div><div class="kv" id="bep" style="font-size:16px;color:var(--warn)">—</div><div class="ks">桶 (動態計算)</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Season Picker -->
+  <div class="panel">
+    <div class="panel-head"><h3>蝦季選擇</h3><div class="hint">點起始月份 → 連續 3 月亮燈，再點取消</div></div>
+    <div class="panel-body">
+      <div class="sg" id="sg"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+        <div class="s-leg"><div class="s-dot" style="background:var(--accent)"></div><span style="color:var(--muted)">黃金 0%</span></div>
+        <div class="s-leg"><div class="s-dot" style="background:var(--warn)"></div><span style="color:var(--muted)">風險 10-30%</span></div>
+        <div class="s-leg"><div class="s-dot" style="background:#ffaa44"></div><span style="color:var(--muted)">春季 20-50%</span></div>
+        <div class="s-leg"><div class="s-dot" style="background:var(--danger)"></div><span style="color:var(--muted)">寒流 100%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active Cycles -->
+  <div class="panel">
+    <div class="panel-head"><h3>已選蝦季</h3><div class="hint" id="cyc">尚未選擇蝦季</div></div>
+    <div class="panel-body" style="min-height:130px;"><div class="cy-list" id="cyl"><div class="es"><div>🦐</div>點選上方月份開始規劃</div></div></div>
+  </div>
+
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- KPI Bar -->
+  <div style="padding:12px 14px;display:grid;grid-template-columns:repeat(5,1fr);gap:10px;border-bottom:1px solid var(--border);flex-shrink:0;">
+    <div class="kc" style="border-color:rgba(61,220,110,0.3);background:rgba(61,220,110,0.05);">
+      <div class="kl">年淨利 USD</div><div class="kv" id="knu" style="color:var(--accent)">—</div><div class="ks" id="knus">請選蝦季</div>
+    </div>
+    <div class="kc"><div class="kl">年淨利 TWD</div><div class="kv" id="knt" style="color:var(--gold)">—</div><div class="ks" id="knts">×30</div></div>
+    <div class="kc"><div class="kl">年總產量 lbs</div><div class="kv" id="klb">—</div><div class="ks" id="klbs">13池合計</div></div>
+    <div class="kc"><div class="kl">投報率 ROI</div><div class="kv" id="kro">—</div><div class="ks" id="kros">淨利/總成本</div></div>
+    <div class="kc"><div class="kl">單池/季成本</div><div class="kv" id="kcp" style="color:var(--warn)">—</div><div class="ks" id="kcps">含人工+電力+飼料</div></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab on" onclick="swTab('map')">🗺 蝦池地圖</div>
+    <div class="tab" onclick="swTab('analysis')">📊 蝦季分析</div>
+    <div class="tab" onclick="swTab('ponds')">🐟 各池明細</div>
+  </div>
+
+  <!-- MAP -->
+  <div class="tab-c on" id="tc-map" style="padding:0;flex:1;display:flex;flex-direction:column;">
+    <div class="map-w" id="mw">
+      <div id="map"></div>
+      <div class="map-ov">
+        <div class="ov-t">🦐 蝦池資產總覽</div>
+        <div class="ov-r"><span>蝦池數量</span><strong>13 池</strong></div>
+        <div class="ov-r"><span>總面積</span><strong>~131.5 ac</strong></div>
+        <div class="ov-r"><span>位置</span><strong>Port Mansfield</strong></div>
+        <div class="ov-r"><span>州別</span><strong>Texas, USA</strong></div>
+        <div class="ov-r"><span>緯度</span><strong>26.3°N</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYSIS -->
+  <div class="tab-c" id="tc-analysis" style="max-height:calc(100vh - 155px);overflow-y:auto;">
+    <div id="sbw"><div class="es"><div style="font-size:28px">📅</div>請先選擇蝦季</div></div>
+
+    <!-- Climate Risk -->
+    <div class="panel" style="margin-top:13px;">
+      <div class="panel-head"><h3>德州氣候風險說明</h3></div>
+      <div class="panel-body" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-family:var(--mono);font-size:11px;">
+        <div style="padding:10px;border-radius:9px;background:rgba(61,220,110,0.07);border:1px solid rgba(61,220,110,0.2)">
+          <div style="color:var(--accent);margin-bottom:4px">● 6–9 月</div><strong>黃金蝦季</strong>
+          <div style="color:var(--muted);margin-top:4px">水溫最佳<br>0% 損失<br>最高產期</div>
+        </div>
+        <div style="padding:10px;border-radius:9px;background:rgba(255,204,68,0.07);border:1px solid rgba(255,204,68,0.2)">
+          <div style="color:var(--warn);margin-bottom:4px">● 10–11 月</div><strong>風險增加</strong>
+          <div style="color:var(--muted);margin-top:4px">冷鋒開始<br>10–30% 損失<br>需謹慎</div>
+        </div>
+        <div style="padding:10px;border-radius:9px;background:rgba(255,85,85,0.07);border:1px solid rgba(255,85,85,0.2)">
+          <div style="color:var(--danger);margin-bottom:4px">● 12–3 月</div><strong>寒流危險</strong>
+          <div style="color:var(--muted);margin-top:4px">北方寒流<br>100% 損失<br>嚴禁養殖</div>
+        </div>
+        <div style="padding:10px;border-radius:9px;background:rgba(255,170,68,0.07);border:1px solid rgba(255,170,68,0.2)">
+          <div style="color:#ffaa44;margin-bottom:4px">● 4–5 月</div><strong>春季風險</strong>
+          <div style="color:var(--muted);margin-top:4px">氣溫回升<br>20–50% 損失<br>高風險期</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Human Risk -->
+    <div class="panel" style="margin-top:13px;">
+      <div class="panel-head">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div>
+            <h3>人為因素風險說明</h3>
+            <div class="hint">邊界關閉影響墨西哥工人調度；基礎時薪 $10/hr (2014)</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">邊界關閉</span>
+            <label class="tg">
+              <input type="checkbox" id="btg" onchange="onBorder()"/>
+              <div class="tg-tr"></div><div class="tg-th"></div>
+            </label>
+            <span id="bst" style="font-family:var(--mono);font-size:12px;font-weight:bold;color:var(--muted)">關</span>
+          </div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-family:var(--mono);font-size:11px;">
+          <!-- Open state -->
+          <div style="padding:10px;border-radius:9px;background:rgba(61,220,110,0.04);border:1px solid rgba(61,220,110,0.2)">
+            <div style="color:var(--accent2);margin-bottom:6px">📋 邊界開放（常態）</div>
+            <div class="cr"><span style="color:var(--muted)">白人飼養員（全場）</span><strong>$150/天</strong></div>
+            <div class="cr"><span style="color:var(--muted)">墨西哥工頭</span><strong>$120/天</strong></div>
+            <div class="cr"><span style="color:var(--muted)">墨西哥工人</span><strong>$100/天</strong></div>
+            <div class="cr"><span style="color:var(--muted)">每日合計（全場）</span><strong style="color:var(--accent)">$370/天</strong></div>
+            <div class="cr"><span style="color:var(--muted)">收蝦臨時工×5</span><strong>墨西哥 $100/人/天</strong></div>
+            <div style="margin-top:7px;padding:6px;background:rgba(61,220,110,0.07);border-radius:6px;color:var(--accent);">
+              勞工供應穩定，成本可控
+            </div>
+          </div>
+          <!-- Closed state -->
+          <div id="bc-box" style="padding:10px;border-radius:9px;background:rgba(255,255,255,0.02);border:1px solid var(--border)">
+            <div id="bc-hd" style="color:var(--muted);margin-bottom:6px">🚧 邊界關閉（<span id="bc-stat">OFF</span>）</div>
+            <div class="cr"><span style="color:var(--muted)">白人飼養員（全場）</span><strong>$150/天</strong></div>
+            <div class="cr"><span style="color:var(--muted)">墨西哥工頭（仍留任）</span><strong>$120/天</strong></div>
+            <div class="cr"><span style="color:var(--muted)">白人本地工人（替換墨西哥工）</span><strong style="color:var(--warn)">$120/天（工頭同薪）</strong></div>
+            <div class="cr"><span style="color:var(--muted)">每日合計（全場）</span><strong style="color:var(--warn)">$390/天</strong></div>
+            <div class="cr"><span style="color:var(--muted)">收蝦臨時工×5</span><strong style="color:var(--danger)">全換白人 $120/人/天</strong></div>
+            <div id="bc-impact" style="margin-top:7px;padding:6px;background:rgba(255,255,255,0.03);border-radius:6px;color:var(--muted);">
+              邊界開放中，無額外影響
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:10px;border-radius:9px;background:rgba(255,255,255,0.02);border:1px solid var(--border);font-family:var(--mono);font-size:11px;">
+          <div style="color:var(--gold);margin-bottom:6px">⚠️ 其他人為風險因素</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;color:var(--muted);">
+            <div>• 工人曠職率（夏季假期）</div><div>• 設備操作失誤導致蝦損</div>
+            <div>• 飼料投放過多/不足</div><div>• 水質監測疏忽</div>
+            <div>• 病害防治延遲反應</div><div>• 收蝦時機判斷失誤</div>
+            <div>• 邊境政策突然改變</div><div>• 工人流動率高</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;padding:10px;border-radius:9px;background:rgba(255,85,85,0.04);border:1px solid rgba(255,85,85,0.15);font-family:var(--mono);font-size:11px;">
+          <div style="color:var(--danger);margin-bottom:5px">📊 邊界關閉 vs 開放 人工成本比較</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+            <div><div style="color:var(--muted)">開放/季/全場</div><strong style="color:var(--accent)" id="lb-open">—</strong></div>
+            <div><div style="color:var(--muted)">關閉/季/全場</div><strong style="color:var(--danger)" id="lb-closed">—</strong></div>
+            <div><div style="color:var(--muted)">差額</div><strong style="color:var(--warn)" id="lb-diff">—</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PONDS -->
+  <div class="tab-c" id="tc-ponds" style="max-height:calc(100vh - 155px);overflow-y:auto;">
+    <div class="panel">
+      <div class="panel-head"><h3>13 個蝦池明細</h3><div class="hint">依 2014 年資料推估</div></div>
+      <div class="panel-body" style="overflow-x:auto;"><table class="pt" id="ptt"></table></div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<!-- ══ COST STRIP (full width) ══ -->
+<div class="cost-strip">
+
+  <!-- Cost Breakdown -->
+  <div class="panel">
+    <div class="panel-head"><h3>成本結構 (單池/季)</h3><div class="hint" id="ch">每季 91 天</div></div>
+    <div class="panel-body" id="cbd"></div>
+  </div>
+
+  <!-- Harvest Cost -->
+  <div class="panel">
+    <div class="panel-head"><h3>收蝦費用 (每季另計)</h3><div class="hint">每季 2 天收蝦，不含入池成本</div></div>
+    <div class="panel-body">
+      <div class="cr"><span style="color:var(--muted)">收蝦機租賃 $1,200×2天</span><strong style="color:var(--warn)">$2,400</strong></div>
+      <div class="cr"><span style="color:var(--muted)">運送費 $500×13池×2天</span><strong style="color:var(--warn)">$13,000</strong></div>
+      <div class="cr"><span style="color:var(--muted)" id="hw-label">臨時工 $100×5人×2天（墨西哥）</span><strong style="color:var(--warn)" id="hw-cost">$1,000</strong></div>
+      <div class="dv"></div>
+      <div class="cr"><span>每季收蝦總成本</span><strong style="color:var(--gold)" id="hw-total">$16,400</strong></div>
+      <div class="cr"><span style="color:var(--muted)" id="hw-note" style="font-size:10px;">邊界關閉時換白人工 $120×5×2=$1,200</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ══ DATA ══
+const PPOLYS = [
+  {name:'Pond 8-9',      c:[[-97.432901,26.331516],[-97.430581,26.331379],[-97.430773,26.329504],[-97.433031,26.329634]]},
+  {name:'Pond 57-58',    c:[[-97.438275,26.3261],  [-97.436041,26.325999],[-97.436175,26.324161],[-97.438389,26.324297]]},
+  {name:'Pond 65-81-82', c:[[-97.441055,26.319638],[-97.43885, 26.319534],[-97.438896,26.318564],[-97.436469,26.318424],[-97.436588,26.317651],[-97.441204,26.317812]]},
+  {name:'Pond 124-47-48',c:[[-97.436545,26.316618],[-97.431911,26.31633], [-97.431835,26.315488],[-97.434156,26.315449],[-97.434218,26.314426],[-97.436664,26.314669]]},
+  {name:'Pond 20-21-44', c:[[-97.436297,26.319377],[-97.434159,26.319319],[-97.433834,26.320172],[-97.431323,26.319997],[-97.431589,26.318172],[-97.436469,26.318424]]},
+];
+const PDEFS = [
+  {name:'Pond 8',   lng:-97.4315,lat:26.3305,ac:8.2},{name:'Pond 9',   lng:-97.4305,lat:26.3295,ac:9.0},
+  {name:'Pond 57',  lng:-97.4375,lat:26.3255,ac:10.1},{name:'Pond 58',  lng:-97.4365,lat:26.3245,ac:9.8},
+  {name:'Pond 65',  lng:-97.4395,lat:26.3195,ac:11.2},{name:'Pond 81',  lng:-97.4380,lat:26.3185,ac:10.5},
+  {name:'Pond 82',  lng:-97.4370,lat:26.3178,ac:10.8},{name:'Pond 124', lng:-97.4350,lat:26.3160,ac:12.4},
+  {name:'Pond 47',  lng:-97.4325,lat:26.3155,ac:8.9},{name:'Pond 48',  lng:-97.4310,lat:26.3148,ac:9.3},
+  {name:'Pond 20',  lng:-97.4350,lat:26.3192,ac:10.6},{name:'Pond 21',  lng:-97.4335,lat:26.3183,ac:11.0},
+  {name:'Pond 44',  lng:-97.4318,lat:26.3175,ac:9.7},
+];
+const MT = {1:'danger',2:'danger',3:'danger',4:'spring',5:'spring',6:'gold',7:'gold',8:'gold',9:'gold',10:'warn',11:'warn',12:'danger'};
+const MN = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+const MF = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+const RL = {gold:0, warn:0.20, spring:0.35, danger:1.0};
+
+// ══ COST MODEL ══
+// Break-even: ~21 buckets (border open, zero-loss) — per pond revenue $42,000 vs cost ~$41,762
+const DAYS = 91;
+const NP   = 13;
+
+const RANCHER_DAILY = 150;   // white rancher, per pond per day (NO /NP)
+const MEX_FOREMAN   = 120;
+const MEX_WORKER    = 100;
+const MEX_DAILY     = MEX_FOREMAN + MEX_WORKER;  // $220/day (border open)
+const WHITE_LOCAL   = 120;                        // $120/day = same wage as foreman
+const CLOSED_DAILY  = MEX_FOREMAN + WHITE_LOCAL;  // $240/day (border closed)
+const FIXED = 40500;
+
+const HARVEST_MACHINE   = 1200 * 2;
+const HARVEST_TRANSPORT = 500 * NP * 2;
+const HARVEST_WORKERS_OPEN   = 100 * 5 * 2;        // $1,000
+const HARVEST_WORKERS_CLOSED = WHITE_LOCAL * 5 * 2; // $1,200
+
+function getHarvestCost(closed) {
+  return HARVEST_MACHINE + HARVEST_TRANSPORT + (closed ? HARVEST_WORKERS_CLOSED : HARVEST_WORKERS_OPEN);
+}
+
+function costBreakdown(closed) {
+  const labRancher = RANCHER_DAILY * DAYS;                 // $13,650
+  const dailyTeam  = closed ? CLOSED_DAILY : MEX_DAILY;
+  const labTeam    = dailyTeam * DAYS;                     // $20,020 or $21,840
+  const labTotal   = labRancher + labTeam;
+  const remaining  = FIXED - labTotal;
+  const elec       = remaining > 0 ? Math.round(remaining * 0.40) : 0;
+  const feed       = remaining > 0 ? remaining - elec : 0;
+  const borderExtra = (CLOSED_DAILY - MEX_DAILY) * DAYS;  // +$1,820 when closed
+  return {
+    labRancher, labTeam, labTotal, remaining, elec, feed,
+    borderExtra, dailyOpen: MEX_DAILY, dailyClosed: CLOSED_DAILY,
+    totalPond: FIXED + (closed ? borderExtra : 0)
+  };
+}
+
+// ══ STATE ══
+let buckets = 30;
+let starts  = new Set();
+let bClosed = false;
+
+// ══ SEASON GRID ══
+function initSG() {
+  const g = document.getElementById('sg');
+  g.innerHTML = '';
+  for (let i=0;i<12;i++) {
+    const type = MT[i+1];
+    const b = document.createElement('div');
+    b.className = `mb t-${type}`; b.dataset.i = i;
+    b.innerHTML = `<span class="mn">${MN[i]}</span><div class="md"></div>`;
+    b.addEventListener('click', ()=>togM(i));
+    g.appendChild(b);
+  }
+}
+function activeMs() {
+  const s = new Set();
+  for (const st of starts) for (let d=0;d<3;d++) s.add((st+d)%12);
+  return s;
+}
+function togM(i) {
+  if (starts.has(i)) {
+    // Remove this start month
+    starts.delete(i);
+  } else {
+    // Check if adding this start would overlap with any existing cycle's months
+    const existing = activeMs();
+    const newMonths = [0,1,2].map(d => (i+d)%12);
+    const hasOverlap = newMonths.some(m => existing.has(m));
+    if (hasOverlap) {
+      // Flash the conflicting buttons to give visual feedback, but don't add
+      newMonths.forEach(m => {
+        const btn = document.querySelector(`.mb[data-i="${m}"]`);
+        if (btn && existing.has(m)) {
+          btn.style.outline = '2px solid var(--danger)';
+          setTimeout(() => btn.style.outline = '', 600);
+        }
+      });
+      return;
+    }
+    starts.add(i);
+  }
+  updSG(); compute();
+}
+function updSG() {
+  const a = activeMs();
+  document.querySelectorAll('.mb').forEach(b => b.classList.toggle('on', a.has(+b.dataset.i)));
+}
+function getCycles() {
+  return [...starts].sort((a,b)=>a-b).map(st => {
+    const ms = [0,1,2].map(d=>{ const mi=(st+d)%12; return {idx:mi,name:MF[mi],type:MT[mi+1]}; });
+    const types = ms.map(m=>m.type);
+    let rt = 'gold';
+    if (types.includes('danger')) rt='danger';
+    else if (types.includes('warn')||types.includes('spring')) rt='warn';
+    return { st, ms, rt, maxLoss: Math.max(...types.map(t=>RL[t])) };
+  });
+}
+
+// ══ COST PANEL ══
+function renderCBD() {
+  const bd = costBreakdown(bClosed);
+  const f$ = n => '$'+Math.round(n).toLocaleString();
+  const cp = bd.totalPond;
+  const HARVEST = getHarvestCost(bClosed);
+  document.getElementById('bep').textContent = ((cp + HARVEST/NP)/(1000*2)).toFixed(1);
+  document.getElementById('kcp').textContent = '$'+fmt(cp);
+  document.getElementById('kcps').textContent = bClosed ? `邊界關閉 (${bd.borderExtra>=0?'+':''}${Math.round(bd.borderExtra)})` : '含人工+電力+飼料';
+  document.getElementById('ch').textContent = `每季 ${DAYS} 天 · ${bClosed?'邊界關閉':'邊界開放'}`;
+  const labOpenTotal   = (RANCHER_DAILY + MEX_DAILY)   * DAYS;
+  const labClosedTotal = (RANCHER_DAILY + CLOSED_DAILY) * DAYS;
+  const el = id => document.getElementById(id);
+  if(el('lb-open'))  el('lb-open').textContent  = f$(labOpenTotal);
+  if(el('lb-closed'))el('lb-closed').textContent = f$(labClosedTotal);
+  if(el('lb-diff'))  { const d=labClosedTotal-labOpenTotal; el('lb-diff').textContent=(d>=0?'+':'')+f$(d); }
+
+  const teamLabel = bClosed
+    ? `工頭 $${MEX_FOREMAN} + 白人 $${WHITE_LOCAL}/天 ×${DAYS}天`
+    : `工頭 $${MEX_FOREMAN} + 工人 $${MEX_WORKER}/天 ×${DAYS}天`;
+
+  document.getElementById('cbd').innerHTML = `
+    <div class="cc">👷 人工成本 / 池 / 季</div>
+    <div class="cr"><span style="color:var(--muted)">白人飼養員 $${RANCHER_DAILY}/天 ×${DAYS}天</span><strong>${f$(bd.labRancher)}</strong></div>
+    <div class="cr"><span style="color:var(--muted)">${teamLabel}</span><strong style="color:${bClosed?'var(--warn)':'var(--text)'}">${f$(bd.labTeam)}</strong></div>
+    <div class="cr" style="background:rgba(255,255,255,0.02);border-radius:5px;padding:4px 7px;">
+      <span>人工小計</span><strong style="color:var(--warn)">${f$(bd.labTotal)}</strong>
+    </div>
+    ${bd.borderExtra!==0?`<div class="cr" style="font-size:10px;"><span style="color:var(--muted)">vs 邊界開放差額</span><strong style="color:${bd.borderExtra>0?'var(--danger)':'var(--accent)'}">${bd.borderExtra>=0?'+':''}${f$(bd.borderExtra)}/池/季</strong></div>`:''}
+    <div class="cc" style="margin-top:8px">⚡ 電力 + 🌾 飼料 (從 $${FIXED.toLocaleString()} 倒推)</div>
+    <div class="cr"><span style="color:var(--muted)">固定池成本上限</span><strong>${f$(FIXED)}</strong></div>
+    <div class="cr"><span style="color:var(--muted)">扣人工後剩餘</span><strong style="color:${bd.remaining>=0?'var(--accent)':'var(--danger)'}">${f$(bd.remaining)}</strong></div>
+    <div class="cr"><span style="color:var(--muted)">電力 (~40%)</span><strong>${f$(bd.elec)}</strong></div>
+    <div class="cr"><span style="color:var(--muted)">飼料 (~60%)</span><strong>${f$(bd.feed)}</strong></div>
+    <div class="dv"></div>
+    <div class="cr"><span>單池/季總成本</span><strong style="color:var(--gold)">${f$(cp)}</strong></div>
+    <div class="cr"><span style="color:var(--muted);font-size:10px;">×13池 合計</span><strong style="font-size:10px;">${f$(cp*NP)}/季</strong></div>`;
+}
+
+// ══ BORDER TOGGLE ══
+function updateHarvestDisplay() {
+  const closed = bClosed;
+  const wCost = closed ? WHITE_LOCAL * 5 * 2 : HARVEST_WORKERS_OPEN;
+  const total  = HARVEST_MACHINE + HARVEST_TRANSPORT + wCost;
+  const hwl = document.getElementById('hw-label');
+  const hwc = document.getElementById('hw-cost');
+  const hwt = document.getElementById('hw-total');
+  if(hwl) hwl.textContent = closed ? `臨時工 $${WHITE_LOCAL}×5人×2天（全白人）` : `臨時工 $100×5人×2天（墨西哥）`;
+  if(hwc) { hwc.textContent = '$'+wCost.toLocaleString(); hwc.style.color = closed ? 'var(--accent)' : 'var(--warn)'; }
+  if(hwt) { hwt.textContent = '$'+total.toLocaleString(); }
+}
+
+function onBorder() {
+  bClosed = document.getElementById('btg').checked;
+  updateHarvestDisplay();
+  const bst  = document.getElementById('bst');
+  const bchd = document.getElementById('bc-hd');
+  const bcst = document.getElementById('bc-stat');
+  const bci  = document.getElementById('bc-impact');
+  const bcbox= document.getElementById('bc-box');
+  if (bClosed) {
+    bst.textContent='開'; bst.style.color='var(--danger)';
+    bcst.textContent='ON ⚠'; bchd.style.color='var(--danger)';
+    bcbox.style.borderColor='rgba(255,85,85,0.3)'; bcbox.style.background='rgba(255,85,85,0.04)';
+    const bd = costBreakdown(true);
+    const diff = Math.round(bd.borderExtra);
+    bci.style.color = diff > 0 ? 'var(--danger)' : 'var(--accent)';
+    bci.style.background = diff > 0 ? 'rgba(255,85,85,0.07)' : 'rgba(61,220,110,0.07)';
+    bci.innerHTML = diff > 0
+      ? `每池增加成本 <strong style="color:var(--danger)">+$${diff}</strong>/季`
+      : diff < 0
+        ? `每池節省 <strong style="color:var(--accent)">$${Math.abs(diff)}</strong>/季<br><span style="font-size:10px;color:var(--muted)">白人本地工 $${WHITE_LOCAL}/天 < 墨西哥工 $${MEX_WORKER}/天</span>`
+        : '成本持平';
+  } else {
+    bst.textContent='關'; bst.style.color='var(--muted)';
+    bcst.textContent='OFF'; bchd.style.color='var(--muted)';
+    bcbox.style.borderColor='var(--border)'; bcbox.style.background='rgba(255,255,255,0.02)';
+    bci.style.color='var(--muted)'; bci.style.background='rgba(255,255,255,0.03)';
+    bci.textContent='邊界開放中，無額外影響';
+  }
+  compute();
+}
+
+// ══ COMPUTE ══
+function fmt(n) {
+  if(Math.abs(n)>=1e6) return (n/1e6).toFixed(2)+'M';
+  if(Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+'K';
+  return Math.round(n).toString();
+}
+function fmtF(n){ return Math.round(n).toLocaleString('en-US'); }
+
+function compute() {
+  renderCBD();
+  const cycles = getCycles();
+  const bd = costBreakdown(bClosed);
+  const cpp = bd.totalPond;
+
+  // Cycles list
+  document.getElementById('cyc').textContent = cycles.length ? `${cycles.length} 個蝦季已選擇` : '尚未選擇蝦季';
+  const cl = document.getElementById('cyl');
+  if (!cycles.length) {
+    cl.innerHTML='<div class="es"><div>🦐</div>點選上方月份開始規劃</div>';
+  } else {
+    cl.innerHTML = cycles.map(c=>{
+      const ms = c.ms.map(m=>m.name).join('→');
+      const cls = c.rt==='gold'?'r-safe':c.rt==='danger'?'r-danger':'r-warn';
+      const txt = c.rt==='gold'?'黃金季':c.rt==='danger'?'寒流危險':'風險季';
+      return `<div class="cy-row"><div style="flex:1;color:var(--accent2)">${ms}</div><span class="${cls}">${txt}</span><span style="font-size:10px;color:var(--muted)">損失${Math.round(c.maxLoss*100)}%</span></div>`;
+    }).join('');
+  }
+
+  if (!cycles.length) {
+    ['knu','knt','klb','kro'].forEach(id=>document.getElementById(id).textContent='—');
+    document.getElementById('knus').textContent='請選擇蝦季';
+    document.getElementById('sbw').innerHTML='<div class="es"><div style="font-size:28px">📅</div>請先選擇蝦季</div>';
+    updPT([]);
+    return;
+  }
+
+  const rows = cycles.map(c=>{
+    const ey  = buckets*1000*(1-c.maxLoss);
+    const rev = ey*2*NP;
+    const pc  = cpp*NP;
+    const HARVEST = getHarvestCost(bClosed);
+    const tot = pc + HARVEST;
+    const net = rev - tot;
+    return {...c, ey, rev, pc, tot, net, lbs:ey*NP};
+  });
+
+  const tRev  = rows.reduce((s,r)=>s+r.rev,0);
+  const tCost = rows.reduce((s,r)=>s+r.tot,0);
+  const tNet  = tRev-tCost;
+  const tLbs  = rows.reduce((s,r)=>s+r.lbs,0);
+  const roi   = tCost>0 ? tNet/tCost*100 : 0;
+
+  const el = (id,val,col)=>{ const e=document.getElementById(id); if(e){e.textContent=val; if(col)e.style.color=col;} };
+  el('knu', (tNet>=0?'+':'')+'$'+fmt(tNet), tNet>=0?'var(--accent)':'var(--danger)');
+  el('knus', `${cycles.length}季×13池`);
+  el('knt', (tNet>=0?'+':'')+'NT$'+fmt(tNet*30));
+  el('knts', `≈ ${fmt(tNet*30/10000)} 萬 TWD`);
+  el('klb', fmt(tLbs)+' lbs'); el('klbs', `${cycles.length} 季合計`);
+  el('kro', (roi>=0?'+':'')+roi.toFixed(1)+'%', roi>=0?'var(--accent)':'var(--danger)');
+  el('kros', `總成本 $${fmt(tCost)}`);
+
+  // Season breakdown
+  document.getElementById('sbw').innerHTML = `
+  <div class="panel">
+    <div class="panel-head"><h3>季度收益分析</h3><div class="hint">含收蝦費 $${getHarvestCost(bClosed).toLocaleString()}/季全場${bClosed?' (白人工)':' (墨西哥工)'}</div></div>
+    <div class="panel-body">
+      <div style="display:flex;flex-direction:column;gap:9px;">
+        ${rows.map(r=>{
+          const mStr=r.ms.map(m=>m.name).join(' + ');
+          const col=r.rt==='gold'?'var(--accent)':r.rt==='danger'?'var(--danger)':'var(--warn)';
+          return `<div style="padding:11px;border-radius:9px;background:rgba(255,255,255,0.02);border:1px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;margin-bottom:7px;">
+              <span style="font-family:var(--mono);font-size:11px;color:${col}">${mStr}</span>
+              <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">損失 ${Math.round(r.maxLoss*100)}%</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7px;font-family:var(--mono);font-size:10px;">
+              <div><div style="color:var(--muted)">收入</div><strong>$${fmtF(Math.round(r.rev))}</strong></div>
+              <div><div style="color:var(--muted)">池成本×13</div><strong style="color:var(--warn)">$${fmtF(r.pc)}</strong></div>
+              <div><div style="color:var(--muted)">收蝦費</div><strong style="color:var(--warn)">$${fmtF(getHarvestCost(bClosed))}</strong></div>
+              <div><div style="color:var(--muted)">總成本</div><strong style="color:#ff9944">$${fmtF(r.tot)}</strong></div>
+              <div><div style="color:var(--muted)">淨利</div><strong style="color:${r.net>=0?'var(--accent)':'var(--danger)'}">${r.net>=0?'+':''}$${fmtF(Math.round(r.net))}</strong></div>
+            </div>
+          </div>`;
+        }).join('')}
+        <div style="padding:11px;border-radius:9px;background:rgba(61,220,110,0.06);border:1px solid rgba(61,220,110,0.25);">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-family:var(--mono);font-size:11px;">
+            <div><div style="color:var(--muted)">年總收入</div><strong style="color:var(--gold)">$${fmtF(Math.round(tRev))}</strong></div>
+            <div><div style="color:var(--muted)">年總成本</div><strong style="color:var(--warn)">$${fmtF(Math.round(tCost))}</strong></div>
+            <div><div style="color:var(--muted)">年淨利</div><strong style="color:${tNet>=0?'var(--accent)':'var(--danger)'}">${tNet>=0?'+':''}$${fmtF(Math.round(tNet))}</strong></div>
+            <div><div style="color:var(--muted)">ROI</div><strong style="color:${roi>=0?'var(--accent)':'var(--danger)'}">${roi>=0?'+':''}${roi.toFixed(1)}%</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  updPT(rows);
+}
+
+function updPT(rows) {
+  const t = document.getElementById('ptt');
+  const nc = rows.length;
+  const bd = costBreakdown(bClosed);
+  const cpp = bd.totalPond;
+  const HARVEST = getHarvestCost(bClosed);
+  const hpp = HARVEST / NP; // harvest cost per pond per season
+  const maxN = rows.length ? PDEFS.reduce((_,__,i,{})=>{
+    const yn = rows.reduce((s,r)=>s+r.ey*2-cpp-hpp,0); return Math.max(1,yn);
+  },1) : 1;
+
+  t.innerHTML = `<thead><tr>
+    <th>蝦池</th><th>面積(ac)</th><th>蝦季</th>
+    <th>年產(lbs)</th><th>年收入</th><th>池成本合計</th><th>收蝦費分攤</th><th>年淨利(USD)</th><th>年淨利(TWD)</th><th>利潤率</th>
+  </tr></thead><tbody>${PDEFS.map(p=>{
+    const ylbs = rows.reduce((s,r)=>s+r.ey,0);
+    const yrev = ylbs*2;
+    const ycost= cpp*nc;
+    const yharv= hpp*nc;
+    const ynet = yrev-ycost-yharv;
+    const mg   = yrev>0 ? ynet/yrev*100 : 0;
+    const bw   = maxN>0 ? Math.max(0,ynet/maxN*60) : 0;
+    const col  = ynet>=0?'var(--accent)':'var(--danger)';
+    return `<tr>
+      <td><strong style="color:var(--accent2)">${p.name}</strong></td>
+      <td style="color:var(--muted)">${p.ac}</td>
+      <td style="color:var(--accent)">${nc||'—'}</td>
+      <td>${nc?fmtF(Math.round(ylbs)):'—'}</td>
+      <td style="color:var(--gold)">${nc?'$'+fmtF(Math.round(yrev)):'—'}</td>
+      <td style="color:var(--warn)">${nc?'$'+fmtF(ycost):'—'}</td>
+      <td style="color:#ff9944">${nc?'$'+fmtF(Math.round(yharv)):'—'}</td>
+      <td><div class="bc"><div class="br" style="width:${bw}px;background:${col}"></div><span style="color:${col}">${nc?(ynet>=0?'+':'')+'$'+fmtF(Math.round(ynet)):'—'}</span></div></td>
+      <td style="color:var(--accent2)">${nc?'NT$'+fmtF(Math.round(ynet*30)):'—'}</td>
+      <td style="color:${mg>=0?'var(--accent)':'var(--danger)'}">${nc?(mg>=0?'+':'')+mg.toFixed(1)+'%':'—'}</td>
+    </tr>`;
+  }).join('')}</tbody>`;
+}
+
+// ══ MAP ══
+function initMap() {
+  const mw = document.getElementById('mw');
+  mw.style.cssText='flex:1;position:relative;height:100%;';
+  const mapEl = document.getElementById('map');
+  mapEl.style.cssText='width:100%;height:100%;position:absolute;inset:0;';
+
+  try {
+    const map = new maplibregl.Map({
+      container:'map',
+      style:{
+        version:8,
+        glyphs:'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        sources:{
+          satellite:{
+            type:'raster',
+            tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+            tileSize:256,
+            attribution:'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics'
+          }
+        },
+        layers:[{
+          id:'satellite',
+          type:'raster',
+          source:'satellite',
+          paint:{ 'raster-opacity':1.0 }
+        }]
+      },
+      center:[-97.435,26.321], zoom:13.2,
+      attributionControl:false
+    });
+    map.addControl(new maplibregl.NavigationControl(),'bottom-right');
+    map.on('load',()=>{
+      const pf = PPOLYS.map(p=>({ type:'Feature', properties:{name:p.name}, geometry:{type:'Polygon',coordinates:[[...p.c,p.c[0]]]} }));
+      map.addSource('parcels',{type:'geojson',data:{type:'FeatureCollection',features:pf}});
+      map.addLayer({id:'pf',type:'fill',source:'parcels',paint:{'fill-color':'#00ff88','fill-opacity':0.25}});
+      map.addLayer({id:'pl',type:'line',source:'parcels',paint:{'line-color':'#00ff88','line-width':2.5,'line-opacity':1.0}});
+      const pts = PDEFS.map((p,i)=>({type:'Feature',properties:{name:p.name,ac:p.ac},geometry:{type:'Point',coordinates:[p.lng,p.lat]}}));
+      map.addSource('pts',{type:'geojson',data:{type:'FeatureCollection',features:pts}});
+      map.addLayer({id:'pc',type:'circle',source:'pts',paint:{'circle-radius':7,'circle-color':'#00ff88','circle-opacity':0.95,'circle-stroke-color':'#ffffff','circle-stroke-width':1.5}});
+      map.addLayer({id:'ptl',type:'symbol',source:'pts',layout:{'text-field':['get','name'],'text-size':11,'text-offset':[0,-1.6],'text-anchor':'bottom'},paint:{'text-color':'#ffffff','text-halo-color':'#000000','text-halo-width':2}});
+      const popup = new maplibregl.Popup({closeButton:false,closeOnClick:false,offset:8});
+      map.on('mouseenter','pc',e=>{ map.getCanvas().style.cursor='pointer'; const p=e.features[0].properties; popup.setLngLat(e.lngLat).setHTML(`<div style="font-family:monospace;font-size:12px;color:#e8f5ec;background:rgba(0,0,0,0.85);border:1px solid rgba(0,255,136,0.5);border-radius:8px;padding:8px 12px"><strong style="color:#00ff88">${p.name}</strong><br>面積: ${p.ac} acres</div>`).addTo(map); });
+      map.on('mouseleave','pc',()=>{ map.getCanvas().style.cursor=''; popup.remove(); });
+    });
+  } catch(e) {
+    mw.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:400px;font-family:monospace;color:#7db88c;flex-direction:column;gap:10px;"><div style="font-size:36px">🗺</div><div>地圖載入失敗</div><div style="font-size:11px;color:rgba(125,184,140,0.5)">Port Mansfield, TX · 26.32°N 97.43°W</div></div>';
+  }
+}
+
+// ══ TABS ══
+function swTab(id) {
+  const ids=['map','analysis','ponds'];
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',ids[i]===id));
+  document.querySelectorAll('.tab-c').forEach(c=>c.classList.toggle('on',c.id==='tc-'+id));
+}
+
+// ══ SLIDER ══
+const sl = document.getElementById('bsl');
+sl.addEventListener('input',function(){
+  buckets=+this.value;
+  this.style.setProperty('--pct',((buckets-5)/40*100).toFixed(1)+'%');
+  document.getElementById('bv').textContent=buckets;
+  document.getElementById('lpp').textContent=(buckets*1000).toLocaleString();
+  compute();
+});
+sl.style.setProperty('--pct',((30-5)/40*100).toFixed(1)+'%');
+
+// ══ BOOT ══
+initSG();
+compute();
+
+// Load MapLibre after everything else
+(function(){
+  const css=document.createElement('link'); css.rel='stylesheet';
+  css.href='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+  document.head.appendChild(css);
+  const js=document.createElement('script');
+  js.src='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+  js.onload=()=>initMap();
+  js.onerror=()=>{
+    document.getElementById('mw').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:400px;font-family:monospace;color:#7db88c;flex-direction:column;gap:10px;"><div style="font-size:36px">🗺</div><div>地圖資源無法載入（離線？）</div><div style="font-size:11px;color:rgba(125,184,140,0.5)">Port Mansfield, TX · 26.32°N 97.43°W</div></div>';
+  };
+  document.body.appendChild(js);
+})();
+</script>
+</body>
+</html>
